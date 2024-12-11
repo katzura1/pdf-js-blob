@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <iframe src="" id="pdfjs46" frameborder="0" style="width: 100%; height: 400px"></iframe>
+    <br />
+    <iframe src="" id="pdfjs49" frameborder="0" style="width: 100%; height: 400px"></iframe>
+
+    <script src="/zip-js/zip-full.min.js"></script>
+    <script src="/zip-js/zip.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const model = (() => {
+          return {
+            getEntries(file, options) {
+              return new zip.ZipReader(new zip.BlobReader(file)).getEntries(options);
+            },
+            async getURL(entry, options) {
+              const file = await entry.getData(new zip.BlobWriter(), options);
+              if (file.size <= 4096) {
+                return false;
+              }
+              return URL.createObjectURL(file, options);
+            },
+          };
+        })();
+
+        const save_brochure = async () => {
+          //download zip file
+          const response = await fetch("/brochure.zip");
+          if (!response.ok) {
+            return null;
+          }
+
+          const contentLength = response.headers.get("content-length");
+          const totalSize = parseInt(contentLength, 10);
+          let downloadedSize = 0;
+          const reader = response.body.getReader();
+          const fileData = [];
+
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              break;
+            }
+
+            fileData.push(value);
+            downloadedSize += value.length;
+
+            const progress = (downloadedSize / totalSize) * 100;
+            console.log(progress);
+          }
+
+          //create blob from zip downloaded
+          const fileBlob = new Blob(fileData);
+          console.log(fileBlob);
+
+          //retrieve entries from zip file
+          const entries = await model.getEntries(fileBlob, {});
+
+          //loop through entries
+          for await (const item of entries) {
+            //get file name
+            const filename = item.filename.toString().toLowerCase();
+            if (filename.includes(".pdf")) {
+              //get url of pdf file
+              const url = await model.getURL(item, {});
+              console.log(url);
+              document.getElementById("pdfjs46").src = "/pdfjs-4.6.8.2/web/viewer.html?file=" + url;
+              document.getElementById("pdfjs49").src = "/pdfjs-4.9.1.5.5/web/viewer.html?file=" + url;
+              break;
+            }
+          }
+        };
+
+        //running save_brochure
+        save_brochure();
+
+        // fetch("brochure.zip")
+        //   .then((response) => response.blob())
+        //   .then((blob) => {
+        //     const url = URL.createObjectURL(blob);
+        //     console.log(url);
+        //     document.getElementById("pdfjs46").src = "/pdfjs-4.6.8.2/web/viewer.html?file=" + url;
+        //     document.getElementById("pdfjs49").src = "/pdfjs-4.9.1.5.5/web/viewer.html?file=" + url;
+        //   })
+        //   .catch((error) => console.error("Error fetching the PDF:", error));
+      });
+    </script>
+  </body>
+</html>
